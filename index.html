@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MyHome Manager</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="manifest.json">
+    
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body { -webkit-tap-highlight-color: transparent; }
+        .slide-up-enter-active, .slide-up-leave-active { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .slide-up-enter-from, .slide-up-leave-to { transform: translateY(100%); }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+    </style>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { primary: '#3b82f6', secondary: '#10b981' } } }
+        }
+    </script>
+</head>
+<body class="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300 overflow-hidden fixed inset-0">
+
+<div id="app" class="flex flex-col h-full w-full">
+
+    <header v-if="currentSection" class="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 shadow-md flex justify-between items-center px-4 z-30">
+        <h1 class="text-xl font-bold tracking-tight text-primary flex items-center gap-2">
+            <div class="bg-primary text-white w-8 h-8 rounded-lg flex items-center justify-center text-sm"><i class="fa-solid fa-house"></i></div>
+            MyHome
+        </h1>
+        <button @click="toggleDarkMode" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center transition-colors">
+            <i class="fa-solid text-sm" :class="isDark ? 'fa-sun text-yellow-400' : 'fa-moon text-gray-600'"></i>
+        </button>
+    </header>
+
+    <div v-if="currentSection" class="h-16 flex-shrink-0"></div>
+
+    <div v-if="!currentSection" class="flex-1 relative w-full h-full bg-black">
+        <div class="absolute inset-0 bg-center bg-cover bg-no-repeat" style="background-image: url('./background.png');"></div>
+        <div @click="enterSection('UTENZE')" class="absolute left-[20%] right-[20%] top-[25%] h-[25%] cursor-pointer z-10 active:bg-white/10 rounded-3xl transition-colors"></div>
+        <div @click="enterSection('ABBONAMENTI')" class="absolute left-[20%] right-[20%] top-[53%] h-[25%] cursor-pointer z-10 active:bg-white/10 rounded-3xl transition-colors"></div>
+        <div class="absolute bottom-10 w-full text-center text-white/80 text-sm font-bold shadow-black drop-shadow-md pointer-events-none">
+            Tocca le icone per entrare
+        </div>
+    </div>
+
+    <main v-else class="flex-1 overflow-y-auto p-4 pb-24 relative bg-gray-100 dark:bg-gray-900 scroll-smooth">
+        
+        <div class="flex justify-between items-center mb-4">
+             <button @click="currentSection = null" class="text-sm font-medium text-gray-500 hover:text-primary flex items-center gap-1">
+                <i class="fa-solid fa-arrow-left"></i> Cambio Sezione
+             </button>
+             <span class="text-xs font-bold px-3 py-1 bg-white dark:bg-gray-800 rounded-full shadow-sm text-primary border dark:border-gray-700 tracking-wider">{{ currentSection }}</span>
+        </div>
+
+        <div v-if="activeTab === 'HOME'" class="space-y-6">
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <h3 class="text-xs text-gray-400 uppercase font-bold tracking-wider">Spesa Totale {{ currentYear }}</h3>
+                <div class="text-4xl font-extrabold mt-2 text-gray-800 dark:text-white">{{ formatCurrency(getYearTotal(currentYear)) }}</div>
+                <div class="mt-4 pt-4 border-t dark:border-gray-700">
+                    <div class="flex justify-between text-xs mb-2">
+                        <span class="text-gray-500">Vs {{ currentYear - 1 }} ({{ formatCurrency(getYearTotal(currentYear - 1)) }})</span>
+                        <span class="font-bold bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded" :class="diffYear >= 0 ? 'text-red-500' : 'text-green-500'">{{ diffYear > 0 ? '+' : '' }}{{ formatCurrency(diffYear) }}</span>
+                    </div>
+                    <div class="h-2.5 w-full bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden">
+                        <div class="h-full transition-all duration-700 ease-out rounded-full" :class="diffYear > 0 ? 'bg-red-500' : 'bg-green-500'" :style="{ width: Math.min((getYearTotal(currentYear) / (getYearTotal(currentYear - 1) || 1)) * 100, 100) + '%' }"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-r from-primary to-blue-600 text-white p-5 rounded-2xl shadow-lg shadow-blue-500/20 flex justify-between items-center relative overflow-hidden">
+                <i class="fa-solid fa-calendar-check absolute -right-4 -bottom-4 text-8xl text-white opacity-10 rotate-12"></i>
+                <div class="relative z-10">
+                    <h3 class="text-xs uppercase font-bold opacity-80">Questo Mese</h3>
+                    <div class="text-3xl font-bold mt-1">{{ formatCurrency(getMonthTotal(new Date())) }}</div>
+                </div>
+                <div class="text-right relative z-10">
+                    <div class="text-xs opacity-70">Vs Mese Prec.</div>
+                    <div class="font-bold text-lg bg-white/20 px-2 py-1 rounded mt-1 backdrop-blur-sm">{{ monthDiffPerc > 0 ? '+' : '' }}{{ monthDiffPerc }}%</div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-bold mb-3 text-gray-600 dark:text-gray-400 ml-1">Inserimento Rapido</h3>
+                <div class="flex gap-4 overflow-x-auto pb-4 pt-1 px-1 no-scrollbar">
+                    <button v-for="item in currentList" :key="item.name" @click="openModal(item.name)" class="flex-shrink-0 group relative">
+                        <div class="w-16 h-16 rounded-2xl bg-white dark:bg-gray-800 text-primary flex items-center justify-center text-2xl shadow-sm border border-gray-100 dark:border-gray-700 active:scale-95 transition-transform overflow-hidden">
+                            <img v-if="getCustomLogo(item.name)" :src="getCustomLogo(item.name)" class="w-full h-full object-cover">
+                            <i v-else-if="item.name=='Luce'" class="fa-solid fa-lightbulb text-yellow-500"></i>
+                            <i v-else-if="item.name=='Gas'" class="fa-solid fa-fire text-red-500"></i>
+                            <i v-else-if="item.name=='Acqua'" class="fa-solid fa-faucet text-blue-500"></i>
+                            <i v-else-if="item.name=='Web'" class="fa-solid fa-wifi text-indigo-500"></i>
+                            <span v-else class="font-bold text-lg text-gray-500">{{ item.name.substring(0,2) }}</span>
+                        </div>
+                        <span class="text-[10px] font-bold text-gray-500 block text-center mt-2 w-16 truncate">{{ item.name }}</span>
+                    </button>
+                    <button @click="openModal('Altro')" class="flex-shrink-0 group">
+                        <div class="w-16 h-16 rounded-2xl bg-gray-200 dark:bg-gray-700 text-gray-500 flex items-center justify-center text-xl shadow-inner active:scale-95 transition-transform">
+                            <i class="fa-solid fa-plus"></i>
+                        </div>
+                        <span class="text-[10px] font-bold text-gray-500 block text-center mt-2">Nuovo</span>
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-bold mb-3 text-gray-600 dark:text-gray-400 ml-1">Storico Registrazioni</h3>
+                <div v-for="year in availableYears" :key="year" class="mb-3">
+                    <div @click="toggleHistory(year)" class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-center cursor-pointer active:bg-gray-50 dark:active:bg-gray-700">
+                        <span class="font-bold text-lg">{{ year }}</span>
+                        <div class="flex items-center gap-3">
+                            <span class="text-primary font-bold">{{ formatCurrency(getYearTotal(year)) }}</span>
+                            <i class="fa-solid fa-chevron-down text-xs text-gray-500 transition-transform duration-300" :class="{'rotate-180': historyOpen === year}"></i>
+                        </div>
+                    </div>
+                    
+                    <transition name="fade">
+                    <div v-if="historyOpen === year" class="mt-2 ml-4 pl-4 border-l-2 border-dashed border-gray-300 dark:border-gray-600 space-y-2">
+                        <div v-for="entry in getEntriesForYearDisplay(year)" :key="entry.id" class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm flex justify-between items-center text-sm border border-gray-100 dark:border-gray-700">
+                            <div class="flex-1">
+                                <div class="font-bold flex items-center gap-2">
+                                    <div class="w-2 h-2 rounded-full" :style="{backgroundColor: getCategoryColor(entry.category)}"></div>
+                                    {{ entry.category }} <span v-if="entry.provider" class="text-[10px] bg-gray-100 dark:bg-gray-700 px-1.5 rounded text-gray-500">{{entry.provider}}</span>
+                                </div>
+                                <div class="text-xs text-gray-400 mt-0.5">{{ formatPeriod(entry) }}</div>
+                                <div v-if="entry.notes" class="text-[10px] text-gray-400 italic truncate w-32">{{entry.notes}}</div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="text-right">
+                                    <div class="font-bold text-gray-700 dark:text-gray-200">{{ formatCurrency(getProRatedAmount(entry, year)) }}</div>
+                                    <div v-if="getProRatedAmount(entry, year) !== entry.amount" class="text-[10px] text-gray-400">su {{ formatCurrency(entry.amount) }}</div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button @click="editEntry(entry)" class="w-7 h-7 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-500 flex items-center justify-center active:scale-95"><i class="fa-solid fa-pen text-xs"></i></button>
+                                    <button @click="deleteEntry(entry.id)" class="w-7 h-7 rounded bg-red-50 dark:bg-red-900/30 text-red-500 flex items-center justify-center active:scale-95"><i class="fa-solid fa-trash text-xs"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="getEntriesForYearDisplay(year).length === 0" class="p-2 text-xs italic text-gray-500">Nessuna spesa tocca questo anno.</div>
+                    </div>
+                    </transition>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="activeTab === 'ANALISI'" class="space-y-6">
+            <div class="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm">
+                 <span class="text-sm font-bold text-gray-600 dark:text-gray-300">Anno</span>
+                 <select v-model="analysisYear" class="bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-lg border-none outline-none font-bold text-primary">
+                    <option v-for="y in availableYears" :value="y">{{ y }}</option>
+                </select>
+            </div>
+            
+            <div class="flex p-1 bg-gray-200 dark:bg-gray-700 rounded-xl">
+                <button @click="analysisMode = 'SPESE'; expandedKey=null" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all" :class="analysisMode==='SPESE' ? 'bg-white dark:bg-gray-800 text-primary shadow' : 'text-gray-500'">SPESE</button>
+                <button v-if="currentSection === 'UTENZE'" @click="analysisMode = 'CONSUMI'; expandedKey=null" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all" :class="analysisMode==='CONSUMI' ? 'bg-white dark:bg-gray-800 text-primary shadow' : 'text-gray-500'">CONSUMI</button>
+                <button @click="analysisMode = 'TAG'; expandedKey=null" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all" :class="analysisMode==='TAG' ? 'bg-white dark:bg-gray-800 text-primary shadow' : 'text-gray-500'">TAG</button>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm h-64 relative flex items-center justify-center">
+                <canvas id="analysisChart"></canvas>
+            </div>
+
+            <div class="text-center">
+                <span class="text-xs uppercase text-gray-400 tracking-widest">Totale {{ analysisMode }}</span>
+                <div class="text-3xl font-bold text-gray-800 dark:text-white mt-1">
+                    {{ analysisMode === 'CONSUMI' ? analysisGrandTotal.toFixed(2) + ' unità' : formatCurrency(analysisGrandTotal) }}
+                </div>
+            </div>
+
+            <div class="space-y-2 pb-8">
+                <div v-for="(val, key) in analysisData" :key="key" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                    <div @click="toggleExpanded(key)" class="p-4 flex justify-between items-center font-bold cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <span class="flex items-center gap-3">
+                             <div class="w-3 h-8 rounded-full" :style="{backgroundColor: getCategoryColor(key)}"></div>
+                             {{ key }}
+                        </span>
+                        <span class="flex items-center gap-1">
+                            {{ analysisMode === 'CONSUMI' ? val.total.toFixed(2) : formatCurrency(val.total) }}
+                            <span v-if="analysisMode === 'CONSUMI'" class="text-xs text-gray-500 font-normal ml-1">{{ getUnit(key) }}</span>
+                        </span>
+                    </div>
+                    <div v-if="expandedKey === key" class="bg-gray-50 dark:bg-gray-750 p-3 border-t dark:border-gray-700 space-y-2">
+                         <div v-if="analysisMode === 'CONSUMI' && key === 'Luce'" class="grid grid-cols-3 gap-2 mb-3 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded border border-yellow-200 dark:border-yellow-700">
+                             <div class="text-center"><div class="text-[10px] text-gray-500">F1</div><div class="font-bold text-xs">{{val.totalF1.toFixed(0)}}</div></div>
+                             <div class="text-center"><div class="text-[10px] text-gray-500">F2</div><div class="font-bold text-xs">{{val.totalF2.toFixed(0)}}</div></div>
+                             <div class="text-center"><div class="text-[10px] text-gray-500">F3</div><div class="font-bold text-xs">{{val.totalF3.toFixed(0)}}</div></div>
+                         </div>
+                         <div v-for="subEntry in val.entries" :key="subEntry.id" class="flex justify-between text-sm p-2 bg-white dark:bg-gray-800 rounded border dark:border-gray-700">
+                             <div>
+                                 <div class="text-xs text-gray-500">{{ formatPeriod(subEntry.original) }}</div>
+                                 <div v-if="subEntry.original.notes" class="text-[10px] italic text-gray-400 mt-0.5">{{subEntry.original.notes}}</div>
+                             </div>
+                             <div class="font-medium">
+                                 {{ analysisMode === 'CONSUMI' ? subEntry.val.toFixed(2) : formatCurrency(subEntry.val) }}
+                                 <span v-if="analysisMode === 'CONSUMI'" class="text-[10px] text-gray-500">{{ getUnit(key) }}</span>
+                             </div>
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="activeTab === 'CONFRONTO'" class="space-y-6">
+            <div class="flex justify-center gap-4 text-xs font-bold mb-2">
+                <span class="flex items-center text-red-500 bg-red-100 px-2 py-1 rounded"><i class="fa-solid fa-arrow-up mr-1"></i> Sale</span>
+                <span class="flex items-center text-green-500 bg-green-100 px-2 py-1 rounded"><i class="fa-solid fa-arrow-down mr-1"></i> Scende</span>
+            </div>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm grid grid-cols-3 gap-3 text-center">
+                 <div><label class="text-[10px] uppercase block font-bold text-gray-400 mb-1">A (Recente)</label><select v-model="compYears.A" class="w-full bg-gray-100 dark:bg-gray-700 text-sm py-2 rounded-lg font-bold text-center outline-none"><option v-for="y in availableYears" :value="y">{{y}}</option></select></div>
+                 <div><label class="text-[10px] uppercase block font-bold text-gray-400 mb-1">B (Medio)</label><select v-model="compYears.B" class="w-full bg-gray-100 dark:bg-gray-700 text-sm py-2 rounded-lg font-bold text-center outline-none"><option v-for="y in availableYears" :value="y">{{y}}</option></select></div>
+                 <div><label class="text-[10px] uppercase block font-bold text-gray-400 mb-1">C (Passato)</label><select v-model="compYears.C" class="w-full bg-gray-100 dark:bg-gray-700 text-sm py-2 rounded-lg font-bold text-center outline-none"><option v-for="y in availableYears" :value="y">{{y}}</option></select></div>
+            </div>
+
+             <div v-for="sectionType in ['Categories', 'Tags']" :key="sectionType">
+                <h3 class="text-sm font-bold mb-3 uppercase text-gray-500 ml-1">{{ sectionType === 'Categories' ? 'Per Categoria' : 'Per Tag' }}</h3>
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
+                    <table class="w-full text-xs sm:text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50 text-gray-500">
+                            <tr>
+                                <th class="p-3 text-left">Nome</th>
+                                <th class="p-3 text-right">A (vs B)</th>
+                                <th class="p-3 text-right">B (vs C)</th>
+                                <th class="p-3 text-right text-gray-400">C</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            <tr v-for="key in (sectionType === 'Categories' ? uniqueCategories : uniqueTags)" :key="key">
+                                <td class="p-3 font-bold flex items-center gap-2">
+                                     <div v-if="sectionType==='Categories'" class="w-2 h-2 rounded-full" :style="{backgroundColor: getCategoryColor(key)}"></div>
+                                     {{ key || 'Nessuno' }}
+                                </td>
+                                <td class="p-3 text-right">
+                                    <div class="font-bold">{{ formatCurrency(getVal(sectionType, key, compYears.A)) }}</div>
+                                    <div v-if="getVal(sectionType, key, compYears.B) > 0" class="text-[10px] font-bold inline-flex items-center gap-1 px-1.5 rounded-full mt-0.5" :class="getDiffColor(getVal(sectionType, key, compYears.A), getVal(sectionType, key, compYears.B))">
+                                        <i class="fa-solid" :class="getVal(sectionType, key, compYears.A) > getVal(sectionType, key, compYears.B) ? 'fa-arrow-up' : 'fa-arrow-down'"></i>
+                                        {{ getDiffPerc(getVal(sectionType, key, compYears.A), getVal(sectionType, key, compYears.B)) }}
+                                    </div>
+                                </td>
+                                <td class="p-3 text-right">
+                                    <div class="font-medium text-gray-600 dark:text-gray-300">{{ formatCurrency(getVal(sectionType, key, compYears.B)) }}</div>
+                                    <div v-if="getVal(sectionType, key, compYears.C) > 0" class="text-[10px] font-bold inline-flex items-center gap-1 px-1.5 rounded-full mt-0.5" :class="getDiffColor(getVal(sectionType, key, compYears.B), getVal(sectionType, key, compYears.C))">
+                                        <i class="fa-solid" :class="getVal(sectionType, key, compYears.B) > getVal(sectionType, key, compYears.C) ? 'fa-arrow-up' : 'fa-arrow-down'"></i>
+                                        {{ getDiffPerc(getVal(sectionType, key, compYears.B), getVal(sectionType, key, compYears.C)) }}
+                                    </div>
+                                </td>
+                                <td class="p-3 text-right text-gray-400">{{ formatCurrency(getVal(sectionType, key, compYears.C)) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+             </div>
+
+             <div v-if="currentSection === 'UTENZE'">
+                <h3 class="text-sm font-bold mb-3 uppercase text-gray-500 ml-1">Per Consumi</h3>
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
+                    <table class="w-full text-xs sm:text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50 text-gray-500">
+                            <tr>
+                                <th class="p-3 text-left">Utenza</th>
+                                <th class="p-3 text-right">A</th>
+                                <th class="p-3 text-right">B</th>
+                                <th class="p-3 text-right text-gray-400">C</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            <tr v-for="key in consumptionCategories" :key="key">
+                                <td class="p-3 font-bold flex items-center gap-2">
+                                     <div class="w-2 h-2 rounded-full" :style="{backgroundColor: getCategoryColor(key)}"></div>
+                                     {{ key }} <span class="text-[9px] text-gray-400 font-normal">({{ getUnit(key) }})</span>
+                                </td>
+                                <td class="p-3 text-right">
+                                    <div class="font-bold">{{ getConsumptionVal(key, compYears.A).toFixed(0) }}</div>
+                                    <div v-if="getConsumptionVal(key, compYears.B) > 0" class="text-[10px] font-bold inline-flex items-center gap-1 px-1.5 rounded-full mt-0.5" :class="getDiffColor(getConsumptionVal(key, compYears.A), getConsumptionVal(key, compYears.B))">
+                                        <i class="fa-solid" :class="getConsumptionVal(key, compYears.A) > getConsumptionVal(key, compYears.B) ? 'fa-arrow-up' : 'fa-arrow-down'"></i>
+                                        {{ getDiffPerc(getConsumptionVal(key, compYears.A), getConsumptionVal(key, compYears.B)) }}
+                                    </div>
+                                </td>
+                                <td class="p-3 text-right">
+                                    <div class="font-medium text-gray-600 dark:text-gray-300">{{ getConsumptionVal(key, compYears.B).toFixed(0) }}</div>
+                                    <div v-if="getConsumptionVal(key, compYears.C) > 0" class="text-[10px] font-bold inline-flex items-center gap-1 px-1.5 rounded-full mt-0.5" :class="getDiffColor(getConsumptionVal(key, compYears.B), getConsumptionVal(key, compYears.C))">
+                                        <i class="fa-solid" :class="getConsumptionVal(key, compYears.B) > getConsumptionVal(key, compYears.C) ? 'fa-arrow-up' : 'fa-arrow-down'"></i>
+                                        {{ getDiffPerc(getConsumptionVal(key, compYears.B), getConsumptionVal(key, compYears.C)) }}
+                                    </div>
+                                </td>
+                                <td class="p-3 text-right text-gray-400">{{ getConsumptionVal(key, compYears.C).toFixed(0) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+             </div>
+        </div>
+
+         <div v-if="activeTab === 'OPZIONI'" class="space-y-6">
+            
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+                <h3 class="font-bold text-sm text-blue-600 mb-2"><i class="fa-solid fa-floppy-disk"></i> Backup & Ripristino</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <button @click="downloadBackup" class="bg-blue-600 text-white py-2 rounded-lg font-bold text-xs shadow hover:bg-blue-700">
+                        <i class="fa-solid fa-download"></i> Scarica Backup
+                    </button>
+                    <label class="bg-green-600 text-white py-2 rounded-lg font-bold text-xs shadow hover:bg-green-700 text-center cursor-pointer flex items-center justify-center">
+                        <i class="fa-solid fa-upload mr-1"></i> Ripristina Backup
+                        <input type="file" accept=".json" @change="restoreBackup" class="hidden">
+                    </label>
+                </div>
+            </div>
+
+            <div class="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-200 dark:border-orange-800 text-center">
+                <h3 class="text-orange-600 dark:text-orange-400 font-bold mb-2 text-sm uppercase"><i class="fa-solid fa-triangle-exclamation"></i> Zona Emergenza</h3>
+                <p class="text-xs text-gray-500 mb-3">Premi qui solo se non vedi i tuoi dati dopo l'aggiornamento.</p>
+                <button @click="recoverOldData" class="w-full bg-orange-500 text-white py-2 rounded-lg font-bold text-sm shadow">
+                    ⚠️ Tenta Super Recupero
+                </button>
+            </div>
+
+            <button @click="exportData" class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 p-4 rounded-xl font-bold shadow-sm flex items-center justify-center gap-3">
+                <i class="fa-solid fa-file-excel text-xl"></i> Esporta Excel
+            </button>
+
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i class="fa-solid fa-icons text-purple-500"></i> Gestione Categorie</h3>
+                <div class="max-h-60 overflow-y-auto space-y-2 pr-1">
+                    <div v-for="item in allCategories" :key="item" class="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded bg-white flex items-center justify-center overflow-hidden border">
+                                <img v-if="getCustomLogo(item)" :src="getCustomLogo(item)" class="w-full h-full object-cover">
+                                <span v-else class="text-xs font-bold">{{item.substring(0,2)}}</span>
+                            </div>
+                            <span class="text-sm font-bold truncate max-w-[100px]">{{ item }}</span>
+                        </div>
+                        <div class="flex gap-1">
+                             <label class="w-8 h-8 rounded bg-blue-100 text-blue-600 flex items-center justify-center cursor-pointer hover:bg-blue-200">
+                                <i class="fa-solid fa-camera"></i>
+                                <input type="file" accept="image/*" class="hidden" @change="(e) => handleLogoUploadDirect(e, item)">
+                            </label>
+                            <button @click="renameCategory(item)" class="w-8 h-8 rounded bg-yellow-100 text-yellow-600 flex items-center justify-center hover:bg-yellow-200"><i class="fa-solid fa-pencil"></i></button>
+                            <button @click="deleteCategory(item)" class="w-8 h-8 rounded bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i class="fa-solid fa-tags text-primary"></i> Tag & Fornitori</h3>
+                <div class="flex gap-2 mb-2">
+                    <input v-model="newTagVal" type="text" placeholder="Nuovo Tag..." class="flex-1 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none border border-transparent focus:border-primary text-sm">
+                    <button @click="addTag" class="bg-primary text-white px-3 rounded-lg"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                 <div class="flex gap-2 mb-4">
+                    <input v-model="newProvVal" type="text" placeholder="Nuovo Fornitore..." class="flex-1 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none border border-transparent focus:border-orange-500 text-sm">
+                    <button @click="addProvider" class="bg-orange-500 text-white px-3 rounded-lg"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                     <span v-for="t in settings.tags" :key="t" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded flex items-center gap-1">{{t}} <i @click="removeOption('TAG', t)" class="fa-solid fa-times cursor-pointer hover:text-red-500"></i></span>
+                     <span v-for="p in settings.providers" :key="p" class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded flex items-center gap-1">{{p}} <i @click="removeOption('PROVIDER', p)" class="fa-solid fa-times cursor-pointer hover:text-red-500"></i></span>
+                </div>
+            </div>
+         </div>
+
+    </main>
+
+    <nav v-if="currentSection" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex justify-around items-center z-30 pb-safe h-16 shadow-[0_-5px_10px_rgba(0,0,0,0.02)]">
+        <button v-for="tab in ['HOME','ANALISI','CONFRONTO','OPZIONI']" :key="tab"
+            @click="activeTab = tab" 
+            class="flex flex-col items-center justify-center w-full h-full transition-all relative" 
+            :class="activeTab === tab ? 'text-primary' : 'text-gray-400 hover:text-gray-600'">
+            <div class="absolute top-0 w-8 h-1 bg-primary rounded-b-full transition-all transform" 
+                 :class="activeTab === tab ? 'scale-100 opacity-100' : 'scale-0 opacity-0'"></div>
+            <i class="fa-solid text-xl mb-1" 
+               :class="{'fa-chart-pie': tab=='HOME', 'fa-chart-column': tab=='ANALISI', 'fa-arrow-right-arrow-left': tab=='CONFRONTO', 'fa-gear': tab=='OPZIONI'}"></i>
+            <span class="text-[9px] font-bold tracking-wide">{{ tab }}</span>
+        </button>
+    </nav>
+    <div v-if="currentSection" class="h-16 flex-shrink-0"></div>
+
+    <transition name="slide-up">
+    <div v-if="showModal" class="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto relative">
+            <div class="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-6 cursor-pointer" @click="closeModal"></div>
+            
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-2xl font-bold">{{ isEditing ? 'Modifica' : 'Nuova' }} Spesa</h3>
+                    <p class="text-sm text-gray-500 font-medium">{{ modalCategory }}</p>
+                </div>
+                <button @click="closeModal" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center hover:bg-red-100 hover:text-red-500"><i class="fa-solid fa-times"></i></button>
+            </div>
+
+            <div class="space-y-5">
+                <div v-if="isCreatingNewSub" class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl space-y-3">
+                    <label class="block text-xs font-bold mb-1 uppercase text-gray-400">Nome Utenza/Abbonamento</label>
+                    <input v-model="form.customName" type="text" class="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:border-primary outline-none font-bold">
+                </div>
+
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-center">
+                    <label class="block text-xs font-bold mb-1 uppercase text-blue-500">Importo Totale</label>
+                    <div class="relative max-w-[200px] mx-auto">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">€</span>
+                        <input v-model="form.amount" type="number" step="0.01" class="w-full pl-8 pr-4 py-2 text-3xl font-bold bg-transparent border-b-2 border-blue-200 dark:border-blue-700 focus:border-blue-500 outline-none text-center">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Data Inizio</label>
+                        <input v-model="form.startDate" type="date" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none font-medium" @change="calculateEndDate">
+                    </div>
+                    <div>
+                         <label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Periodicità</label>
+                         <select v-model="form.periodicity" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none font-medium" @change="calculateEndDate">
+                            <option value="1">Mensile</option>
+                            <option value="2">Bimestrale</option>
+                            <option value="3">Trimestrale</option>
+                            <option value="12">Annuale</option>
+                            <option value="custom">Altro...</option>
+                        </select>
+                    </div>
+                    <div v-if="form.periodicity === 'custom'" class="col-span-2">
+                        <label class="block text-xs font-bold mb-1">Numero Mesi</label>
+                        <input v-model="form.customMonths" type="number" class="w-full p-3 border rounded-lg dark:bg-gray-700" @input="calculateEndDate">
+                    </div>
+                </div>
+
+                <div v-if="currentSection === 'UTENZE' && ['Luce','Gas','Acqua'].includes(modalCategory)" class="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl border border-dashed border-gray-300 dark:border-gray-600">
+                    <label class="block text-xs font-bold mb-2 text-primary uppercase tracking-wide">
+                        Consumi ({{ getUnit(modalCategory) }})
+                    </label>
+                    <div v-if="modalCategory === 'Luce'" class="grid grid-cols-3 gap-2">
+                        <input v-model="form.f1" placeholder="F1" type="number" class="p-2 text-center text-sm rounded border dark:bg-gray-600">
+                        <input v-model="form.f2" placeholder="F2" type="number" class="p-2 text-center text-sm rounded border dark:bg-gray-600">
+                        <input v-model="form.f3" placeholder="F3" type="number" class="p-2 text-center text-sm rounded border dark:bg-gray-600">
+                    </div>
+                    <div v-else><input v-model="form.consumption" type="number" class="w-full p-2 rounded border dark:bg-gray-600"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Fornitore</label>
+                        <select v-model="form.provider" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none text-sm">
+                            <option value="">-</option><option v-for="p in settings.providers" :value="p">{{ p }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Tag</label>
+                        <select v-model="form.tag" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none text-sm">
+                             <option value="">-</option><option v-for="t in settings.tags" :value="t">{{ t }}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div v-if="currentSection === 'ABBONAMENTI'" class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <input type="checkbox" v-model="form.isShared" id="shared" class="w-5 h-5 text-primary rounded">
+                    <label for="shared" class="text-sm font-medium flex-1">Abbonamento Condiviso?</label>
+                    <input v-if="form.isShared" v-model="form.sharedWith" type="number" placeholder="Persone" class="w-20 p-2 text-xs border rounded text-center">
+                </div>
+
+                <textarea v-model="form.notes" placeholder="Note aggiuntive..." class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none text-sm h-20 resize-none"></textarea>
+
+                <button @click="saveExpense" class="w-full py-4 bg-primary text-white rounded-xl font-bold shadow-lg mt-4 active:scale-95 transition-all">
+                    {{ isEditing ? 'SALVA MODIFICHE' : 'REGISTRA ORA' }}
+                </button>
+            </div>
+        </div>
+    </div>
+    </transition>
+
+</div>
+
+<script>
+    const { createApp, ref, computed, onMounted, watch } = Vue;
+
+    createApp({
+        setup() {
+            // STATE
+            const currentSection = ref(null);
+            const activeTab = ref('HOME');
+            const isDark = ref(false);
+            const currentYear = new Date().getFullYear();
+            
+            const expenses = ref([]); 
+            const settings = ref({ providers: ['Enel', 'Eni', 'Netflix', 'Amazon', 'Tim'], tags: ['Casa', 'Svago', 'Lavoro', 'Sport'] });
+            
+            // LISTE
+            const subscriptionTypes = ref([{name: 'Netflix'}, {name: 'Prime'}, {name: 'Spotify'}]);
+            const utilityTypes = ref([{name: 'Luce'}, {name: 'Gas'}, {name: 'Acqua'}, {name: 'Web'}]);
+            const customLogos = ref({}); 
+
+            // COLORS MAP
+            const categoryColors = { 'Luce': '#facc15', 'Gas': '#ef4444', 'Acqua': '#3b82f6', 'Web': '#6366f1', 'Netflix': '#b91c1c', 'Prime': '#0ea5e9', 'Spotify': '#22c55e', 'default': '#9ca3af' };
+            function getCategoryColor(name) { return categoryColors[name] || '#' + Math.floor(Math.random()*16777215).toString(16); }
+            function getUnit(name) { if(name === 'Luce') return 'kWh'; if(name === 'Gas') return 'Smc'; if(name === 'Acqua') return 'mc'; return ''; }
+
+            // Form
+            const showModal = ref(false); const isEditing = ref(false); const editingId = ref(null); const modalCategory = ref(''); const isCreatingNewSub = ref(false); const form = ref({});
+            // Analisi
+            const analysisYear = ref(currentYear); const analysisMode = ref('SPESE'); const expandedKey = ref(null); let chartInstance = null;
+            const compYears = ref({ A: currentYear, B: currentYear-1, C: currentYear-2 });
+            const newTagVal = ref(''); const newProvVal = ref(''); const historyOpen = ref(null);
+
+            // INIT (CON SUPER RECUPERO AUTO)
+            onMounted(() => {
+                // Recupero normale
+                let saved = localStorage.getItem('myHomeDataV7');
+                if (saved) {
+                    expenses.value = JSON.parse(saved);
+                } else {
+                    // Primo tentativo di auto-recupero se V7 è vuoto
+                    recoverOldData(true);
+                }
+
+                const savedSet = localStorage.getItem('myHomeSettings'); if (savedSet) settings.value = JSON.parse(savedSet);
+                const savedSubs = localStorage.getItem('myHomeSubs'); if (savedSubs) subscriptionTypes.value = JSON.parse(savedSubs);
+                const savedUtils = localStorage.getItem('myHomeUtils'); if (savedUtils) utilityTypes.value = JSON.parse(savedUtils);
+                const savedLogos = localStorage.getItem('myHomeLogos'); if (savedLogos) customLogos.value = JSON.parse(savedLogos);
+
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) isDark.value = true;
+                updateTheme();
+            });
+
+            // RECUPERO DATI VECCHI (SUPER SCAN)
+            function recoverOldData(silent = false) {
+                let found = 0;
+                // Scansiona TUTTE le chiavi del localStorage
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    // Se la chiave sembra un backup vecchio (contiene myHomeData)
+                    if (key && key.includes('myHomeData')) {
+                        try {
+                            const old = localStorage.getItem(key);
+                            const parsed = JSON.parse(old);
+                            if(Array.isArray(parsed) && parsed.length > 0) {
+                                const currentIds = new Set(expenses.value.map(e => e.id));
+                                parsed.forEach(p => {
+                                    if(!currentIds.has(p.id)) {
+                                        expenses.value.push(p);
+                                        currentIds.add(p.id);
+                                        found++;
+                                    }
+                                });
+                            }
+                        } catch(e) {}
+                    }
+                }
+                if (!silent) alert(`Recuperati ${found} record dai backup precedenti trovati.`);
+            }
+
+            // BACKUP & RESTORE SU FILE (NOVITA')
+            function downloadBackup() {
+                const backup = {
+                    expenses: expenses.value,
+                    settings: settings.value,
+                    subscriptionTypes: subscriptionTypes.value,
+                    utilityTypes: utilityTypes.value,
+                    customLogos: customLogos.value,
+                    version: 'V8'
+                };
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "backup_myhome.json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            }
+
+            function restoreBackup(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const backup = JSON.parse(e.target.result);
+                        if (backup.expenses) expenses.value = backup.expenses;
+                        if (backup.settings) settings.value = backup.settings;
+                        if (backup.subscriptionTypes) subscriptionTypes.value = backup.subscriptionTypes;
+                        if (backup.utilityTypes) utilityTypes.value = backup.utilityTypes;
+                        if (backup.customLogos) customLogos.value = backup.customLogos;
+                        alert("Backup ripristinato con successo!");
+                        location.reload(); // Ricarica per applicare
+                    } catch (err) {
+                        alert("Errore nel file di backup.");
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            // WATCHERS
+            watch(expenses, (n) => localStorage.setItem('myHomeDataV7', JSON.stringify(n)), { deep: true });
+            watch(settings, (n) => localStorage.setItem('myHomeSettings', JSON.stringify(n)), { deep: true });
+            watch(subscriptionTypes, (n) => localStorage.setItem('myHomeSubs', JSON.stringify(n)), { deep: true });
+            watch(utilityTypes, (n) => localStorage.setItem('myHomeUtils', JSON.stringify(n)), { deep: true });
+            watch(customLogos, (n) => localStorage.setItem('myHomeLogos', JSON.stringify(n)), { deep: true });
+            watch(isDark, updateTheme);
+            watch([activeTab, analysisYear, analysisMode, currentSection], () => { if (activeTab.value === 'ANALISI') setTimeout(renderChart, 100); });
+
+            // COMPUTED
+            const currentList = computed(() => currentSection.value === 'UTENZE' ? utilityTypes.value : subscriptionTypes.value);
+            const allCategories = computed(() => [...new Set([...utilityTypes.value, ...subscriptionTypes.value].map(i => i.name))]);
+            const consumptionCategories = computed(() => ['Luce','Gas','Acqua']);
+            const availableYears = computed(() => {
+                const years = new Set(expenses.value.filter(e => e.section === currentSection.value).map(e => parseInt(e.startDate.substring(0,4))));
+                years.add(currentYear);
+                expenses.value.filter(e => e.section === currentSection.value).forEach(e => years.add(parseInt(e.endDate.substring(0,4))));
+                return Array.from(years).sort((a,b) => b-a);
+            });
+
+            // LOGIC & UI HELPERS
+            function getMonthsDiff(start, end) { if(!start || !end) return 1; const d1 = new Date(start); const d2 = new Date(end); return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()) + 1; }
+            function getProRatedAmount(expense, year) { const start = new Date(expense.startDate); const totalMonths = expense.monthsCount || 1; const monthlyAmount = expense.amount / totalMonths; let matches = 0; let cursor = new Date(start.getFullYear(), start.getMonth(), 1); for(let i=0; i<totalMonths; i++) { if (year === cursor.getFullYear()) matches++; cursor.setMonth(cursor.getMonth() + 1); } return matches * monthlyAmount; }
+            function getProRatedConsumption(expense, year) { const totalMonths = expense.monthsCount || 1; const matches = getProRatedAmount({ ...expense, amount: totalMonths }, year); const val = (expense.consumption || 0) + (expense.f1||0) + (expense.f2||0) + (expense.f3||0); return (val / totalMonths) * matches; }
+            function getEntriesForYearDisplay(year) { return expenses.value.filter(e => { if(e.section !== currentSection.value) return false; const s = new Date(e.startDate).getFullYear(); const end = new Date(e.endDate).getFullYear(); return year >= s && year <= end; }).sort((a,b) => new Date(b.startDate) - new Date(a.startDate)); }
+            function getYearTotal(year) { return expenses.value.filter(e => e.section === currentSection.value).reduce((sum, e) => sum + getProRatedAmount(e, year), 0); }
+            function getMonthTotal(date) { const targetY = date.getFullYear(); const targetM = date.getMonth(); return expenses.value.filter(e => e.section === currentSection.value).reduce((sum, e) => { const start = new Date(e.startDate); const months = e.monthsCount || 1; let hits = 0; let cursor = new Date(start.getFullYear(), start.getMonth(), 1); for(let i=0; i<months; i++) { if(cursor.getFullYear() === targetY && cursor.getMonth() === targetM) hits++; cursor.setMonth(cursor.getMonth()+1); } return sum + (hits * (e.amount/months)); }, 0); }
+            const diffYear = computed(() => getYearTotal(currentYear) - getYearTotal(currentYear - 1));
+            const monthDiffPerc = computed(() => { const now = new Date(); const curr = getMonthTotal(now); const prev = getMonthTotal(new Date(now.getFullYear(), now.getMonth()-1, 1)); if(prev === 0) return 0; return Math.round(((curr - prev) / prev) * 100); });
+            function formatCurrency(val) { return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(val); }
+            function formatPeriod(entry) { const d1 = new Date(entry.startDate); const d2 = new Date(entry.endDate); const opts = { month: 'short', year: '2-digit' }; return `${d1.toLocaleDateString('it-IT', opts)} - ${d2.toLocaleDateString('it-IT', opts)}`; }
+            function getCustomLogo(name) { return customLogos.value[name] || null; }
+
+            // CRUD
+            function handleLogoUploadDirect(event, itemName) { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); const maxSize = 150; let w = img.width, h = img.height; if (w > h) { if (w > maxSize) { h *= maxSize / w; w = maxSize; } } else { if (h > maxSize) { w *= maxSize / h; h = maxSize; } } canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h); customLogos.value[itemName] = canvas.toDataURL('image/jpeg', 0.85); }; img.src = e.target.result; }; reader.readAsDataURL(file); }
+            function renameCategory(oldName) { const newName = prompt("Nuovo nome per " + oldName + ":", oldName); if (!newName || newName === oldName) return; let list = utilityTypes.value.find(u => u.name === oldName) ? utilityTypes.value : subscriptionTypes.value; let item = list.find(u => u.name === oldName); if(item) item.name = newName; if(customLogos.value[oldName]) { customLogos.value[newName] = customLogos.value[oldName]; delete customLogos.value[oldName]; } expenses.value.forEach(e => { if(e.category === oldName) e.category = newName; }); }
+            function deleteCategory(name) { if(!confirm("Rimuovere '" + name + "'?")) return; utilityTypes.value = utilityTypes.value.filter(u => u.name !== name); subscriptionTypes.value = subscriptionTypes.value.filter(s => s.name !== name); }
+            function enterSection(sec) { currentSection.value = sec; activeTab.value = 'HOME'; }
+            function openModal(cat) { isEditing.value = false; modalCategory.value = cat; isCreatingNewSub.value = (cat === 'Altro'); const d = new Date(); form.value = { amount: '', periodicity: '1', customMonths: 0, startDate: d.toISOString().split('T')[0], endDate: '', provider: '', tag: '', f1: '', f2: '', f3: '', consumption: '', notes: '', customName: '', isShared: false }; calculateEndDate(); showModal.value = true; }
+            function editEntry(entry) { isEditing.value = true; editingId.value = entry.id; modalCategory.value = entry.category; isCreatingNewSub.value = false; form.value = JSON.parse(JSON.stringify(entry)); if(entry.category === 'Altro') isCreatingNewSub.value = true; showModal.value = true; }
+            function calculateEndDate() { if (!form.value.startDate) return; const start = new Date(form.value.startDate); let months = parseInt(form.value.periodicity); if(form.value.periodicity === 'custom') months = parseInt(form.value.customMonths) || 1; const end = new Date(start.getFullYear(), start.getMonth() + months, 0); form.value.endDate = end.toISOString().split('T')[0]; }
+            function saveExpense() { if(!form.value.amount || !form.value.startDate) return alert("Dati mancanti."); const catName = isCreatingNewSub.value ? form.value.customName : modalCategory.value; if(!catName) return alert("Inserisci un nome."); if(isCreatingNewSub.value) { if(currentSection.value === 'UTENZE') { if(!utilityTypes.value.find(u => u.name === catName)) utilityTypes.value.push({name: catName}); } else { if(!subscriptionTypes.value.find(s => s.name === catName)) subscriptionTypes.value.push({name: catName}); } } const monthsCount = getMonthsDiff(form.value.startDate, form.value.endDate); const record = { id: isEditing.value ? editingId.value : Date.now(), section: currentSection.value, category: catName, amount: parseFloat(form.value.amount), startDate: form.value.startDate, endDate: form.value.endDate, periodicity: form.value.periodicity, customMonths: form.value.customMonths, monthsCount: monthsCount, provider: form.value.provider, tag: form.value.tag, consumption: parseFloat(form.value.consumption)||0, f1: parseFloat(form.value.f1)||0, f2: parseFloat(form.value.f2)||0, f3: parseFloat(form.value.f3)||0, notes: form.value.notes, isShared: form.value.isShared, sharedWith: form.value.sharedWith }; if (isEditing.value) { const idx = expenses.value.findIndex(e => e.id === editingId.value); if (idx !== -1) expenses.value[idx] = record; } else { expenses.value.push(record); } closeModal(); }
+            function closeModal() { showModal.value = false; }
+            function deleteEntry(id) { if(confirm("Eliminare?")) expenses.value = expenses.value.filter(e => e.id !== id); }
+
+            // ANALISI & EXPORT
+            const analysisData = computed(() => { const grouped = {}; expenses.value.filter(e => e.section === currentSection.value).forEach(e => { let val = (analysisMode.value === 'CONSUMI') ? getProRatedConsumption(e, analysisYear.value) : getProRatedAmount(e, analysisYear.value); if(val > 0) { let key = e.category; if(analysisMode.value === 'TAG') key = e.tag || 'No Tag'; if (!grouped[key]) grouped[key] = { total: 0, totalF1:0, totalF2:0, totalF3:0, entries: [] }; grouped[key].total += val; const yearFactor = getProRatedAmount({ ...e, amount: 1 }, analysisYear.value); grouped[key].totalF1 += (e.f1 || 0) * yearFactor; grouped[key].totalF2 += (e.f2 || 0) * yearFactor; grouped[key].totalF3 += (e.f3 || 0) * yearFactor; grouped[key].entries.push({ original: e, val: val, id: e.id }); } }); return grouped; });
+            const analysisGrandTotal = computed(() => Object.values(analysisData.value).reduce((acc, curr) => acc + curr.total, 0));
+            function toggleExpanded(key) { expandedKey.value = expandedKey.value === key ? null : key; }
+            function renderChart() { const ctx = document.getElementById('analysisChart'); if(!ctx) return; if(chartInstance) chartInstance.destroy(); const labels = Object.keys(analysisData.value); const data = Object.values(analysisData.value).map(o => o.total); const bgColors = labels.map(l => getCategoryColor(l)); chartInstance = new Chart(ctx, { type: analysisMode.value === 'CONSUMI' ? 'bar' : 'doughnut', data: { labels: labels, datasets: [{ data: data, backgroundColor: bgColors, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: analysisMode.value !== 'CONSUMI', position: 'right', labels: { color: isDark.value?'#fff':'#333' } } } } }); }
+            
+            function exportData() { const explodedData = []; expenses.value.filter(e => e.section === currentSection.value).forEach(e => { const start = new Date(e.startDate); const months = e.monthsCount || 1; const monthlyAmount = e.amount / months; const monthlyCons = (e.consumption || 0) / months; const monthlyF1 = (e.f1 || 0) / months; const monthlyF2 = (e.f2 || 0) / months; const monthlyF3 = (e.f3 || 0) / months; let cursor = new Date(start.getFullYear(), start.getMonth(), 1); for(let i=0; i<months; i++) { explodedData.push({ "Anno": cursor.getFullYear(), "Mese": cursor.toLocaleString('it-IT', { month: 'long' }), "Categoria": e.category, "Fornitore": e.provider, "Importo (€)": monthlyAmount.toFixed(2), "Consumo Tot": monthlyCons.toFixed(2), "F1": monthlyF1.toFixed(2), "F2": monthlyF2.toFixed(2), "F3": monthlyF3.toFixed(2), "Tag": e.tag, "Condiviso": e.isShared ? 'SI' : 'NO', "Note": e.notes }); cursor.setMonth(cursor.getMonth() + 1); } }); const ws = XLSX.utils.json_to_sheet(explodedData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Dettaglio_Mensile"); XLSX.writeFile(wb, "MyHome_Export_Completo.xlsx"); }
+
+            const uniqueCategories = computed(() => Array.from(new Set(expenses.value.filter(e => e.section === currentSection.value).map(e => e.category))));
+            const uniqueTags = computed(() => Array.from(new Set(expenses.value.filter(e => e.section === currentSection.value).map(e => e.tag))));
+            function getVal(type, key, year) { return expenses.value.filter(e => e.section === currentSection.value && (type==='Categories'?e.category:e.tag) === key).reduce((s, e) => s + getProRatedAmount(e, year), 0); }
+            function getConsumptionVal(key, year) { return expenses.value.filter(e => e.section === currentSection.value && e.category === key).reduce((s, e) => s + getProRatedConsumption(e, year), 0); }
+            function getDiffPerc(curr, prev) { if(!prev) return 'N/A'; const p = ((curr - prev) / prev) * 100; return Math.round(Math.abs(p)) + '%'; }
+            function getDiffColor(curr, prev) { return (curr > prev) ? 'text-red-500 bg-red-100' : 'text-green-500 bg-green-100'; }
+            function addTag() { if(newTagVal.value) { settings.value.tags.push(newTagVal.value); newTagVal.value=''; } }
+            function addProvider() { if(newProvVal.value) { settings.value.providers.push(newProvVal.value); newProvVal.value=''; } }
+            function removeOption(type, val) { if(confirm("Eliminare?")) { if(type==='TAG') settings.value.tags = settings.value.tags.filter(t=>t!==val); else settings.value.providers = settings.value.providers.filter(p=>p!==val); } }
+            function toggleDarkMode() { isDark.value = !isDark.value; }
+            function updateTheme() { document.documentElement.classList.toggle('dark', isDark.value); }
+            function toggleHistory(year) { historyOpen.value = historyOpen.value === year ? null : year; }
+
+            return {
+                currentSection, activeTab, isDark, toggleDarkMode, enterSection,
+                currentYear, diffYear, availableYears, currentList, allCategories, consumptionCategories,
+                getYearTotal, getMonthTotal, monthDiffPerc, formatCurrency, formatPeriod, getCustomLogo, getUnit, getCategoryColor,
+                expenses, getEntriesForYearDisplay, editEntry, deleteEntry, getProRatedAmount,
+                showModal, isEditing, modalCategory, isCreatingNewSub, form, openModal, closeModal, saveExpense, calculateEndDate, handleLogoUploadDirect, renameCategory, deleteCategory,
+                settings, subscriptionTypes, utilityTypes, getMonthsDiff,
+                analysisYear, analysisMode, analysisData, analysisGrandTotal, expandedKey, toggleExpanded,
+                compYears, uniqueCategories, uniqueTags, getVal, getConsumptionVal, getDiffPerc, getDiffColor,
+                newTagVal, newProvVal, addTag, addProvider, removeOption, exportData, historyOpen, toggleHistory,
+                recoverOldData, downloadBackup, restoreBackup // EXPORT NEW
+            }
+        }
+    }).mount('#app');
+
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+</script>
+</body>
+</html>
