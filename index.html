@@ -171,9 +171,7 @@
 
             <div class="text-center">
                 <span class="text-xs uppercase text-gray-400 tracking-widest">Totale {{ analysisMode }}</span>
-                <div class="text-3xl font-bold text-gray-800 dark:text-white mt-1">
-                    {{ analysisMode === 'CONSUMI' ? analysisGrandTotal.toFixed(2) + ' unità' : formatCurrency(analysisGrandTotal) }}
-                </div>
+                <div class="text-3xl font-bold text-gray-800 dark:text-white mt-1">{{ analysisMode === 'CONSUMI' ? analysisGrandTotal.toFixed(2) + ' unità' : formatCurrency(analysisGrandTotal) }}</div>
             </div>
 
             <div class="space-y-2 pb-8">
@@ -302,7 +300,19 @@
          <div v-if="activeTab === 'OPZIONI'" class="space-y-6">
             
             <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
-                <h3 class="font-bold text-sm text-blue-600 mb-2"><i class="fa-solid fa-floppy-disk"></i> Backup & Ripristino</h3>
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-sm text-blue-600"><i class="fa-solid fa-floppy-disk"></i> Backup & Ripristino</h3>
+                    <div class="flex items-center gap-2 text-xs">
+                        <div class="w-3 h-3 rounded-full animate-pulse" :class="isBackupNeeded ? 'bg-red-500' : 'bg-green-500'"></div>
+                        <span class="font-bold" :class="isBackupNeeded ? 'text-red-500' : 'text-green-600'">
+                            {{ isBackupNeeded ? 'Modifiche non salvate' : 'Tutto al sicuro' }}
+                        </span>
+                    </div>
+                </div>
+                <div class="text-[10px] text-gray-500 mb-3 text-right">
+                    Ultimo backup: {{ lastBackupDate || 'Mai effettuato' }}
+                </div>
+
                 <div class="grid grid-cols-2 gap-3">
                     <button @click="downloadBackup" class="bg-blue-600 text-white py-2 rounded-lg font-bold text-xs shadow hover:bg-blue-700">
                         <i class="fa-solid fa-download"></i> Scarica Backup
@@ -316,8 +326,8 @@
 
             <div class="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-200 dark:border-orange-800 text-center">
                 <h3 class="text-orange-600 dark:text-orange-400 font-bold mb-2 text-sm uppercase"><i class="fa-solid fa-triangle-exclamation"></i> Zona Emergenza</h3>
-                <p class="text-xs text-gray-500 mb-3">Premi qui solo se non vedi i tuoi dati dopo l'aggiornamento.</p>
-                <button @click="recoverOldData" class="w-full bg-orange-500 text-white py-2 rounded-lg font-bold text-sm shadow">
+                <p class="text-xs text-gray-500 mb-3">Premi qui se non vedi più i tuoi dati.</p>
+                <button @click="recoverOldData" class="w-full bg-orange-500 text-white py-2 rounded-lg font-bold text-sm shadow active:scale-95 transition-transform">
                     ⚠️ Tenta Super Recupero
                 </button>
             </div>
@@ -386,88 +396,23 @@
     <div v-if="showModal" class="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm">
         <div class="bg-white dark:bg-gray-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto relative">
             <div class="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-6 cursor-pointer" @click="closeModal"></div>
-            
             <div class="flex justify-between items-center mb-6">
-                <div>
-                    <h3 class="text-2xl font-bold">{{ isEditing ? 'Modifica' : 'Nuova' }} Spesa</h3>
-                    <p class="text-sm text-gray-500 font-medium">{{ modalCategory }}</p>
-                </div>
+                <div><h3 class="text-2xl font-bold">{{ isEditing ? 'Modifica' : 'Nuova' }} Spesa</h3><p class="text-sm text-gray-500 font-medium">{{ modalCategory }}</p></div>
                 <button @click="closeModal" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center hover:bg-red-100 hover:text-red-500"><i class="fa-solid fa-times"></i></button>
             </div>
-
             <div class="space-y-5">
-                <div v-if="isCreatingNewSub" class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl space-y-3">
-                    <label class="block text-xs font-bold mb-1 uppercase text-gray-400">Nome Utenza/Abbonamento</label>
-                    <input v-model="form.customName" type="text" class="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:border-primary outline-none font-bold">
-                </div>
-
-                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-center">
-                    <label class="block text-xs font-bold mb-1 uppercase text-blue-500">Importo Totale</label>
-                    <div class="relative max-w-[200px] mx-auto">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">€</span>
-                        <input v-model="form.amount" type="number" step="0.01" class="w-full pl-8 pr-4 py-2 text-3xl font-bold bg-transparent border-b-2 border-blue-200 dark:border-blue-700 focus:border-blue-500 outline-none text-center">
-                    </div>
-                </div>
-
+                <div v-if="isCreatingNewSub" class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl space-y-3"><label class="block text-xs font-bold mb-1 uppercase text-gray-400">Nome Utenza/Abbonamento</label><input v-model="form.customName" type="text" class="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:border-primary outline-none font-bold"></div>
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-center"><label class="block text-xs font-bold mb-1 uppercase text-blue-500">Importo Totale</label><div class="relative max-w-[200px] mx-auto"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">€</span><input v-model="form.amount" type="number" step="0.01" class="w-full pl-8 pr-4 py-2 text-3xl font-bold bg-transparent border-b-2 border-blue-200 dark:border-blue-700 focus:border-blue-500 outline-none text-center"></div></div>
                 <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Data Inizio</label>
-                        <input v-model="form.startDate" type="date" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none font-medium" @change="calculateEndDate">
-                    </div>
-                    <div>
-                         <label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Periodicità</label>
-                         <select v-model="form.periodicity" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none font-medium" @change="calculateEndDate">
-                            <option value="1">Mensile</option>
-                            <option value="2">Bimestrale</option>
-                            <option value="3">Trimestrale</option>
-                            <option value="12">Annuale</option>
-                            <option value="custom">Altro...</option>
-                        </select>
-                    </div>
-                    <div v-if="form.periodicity === 'custom'" class="col-span-2">
-                        <label class="block text-xs font-bold mb-1">Numero Mesi</label>
-                        <input v-model="form.customMonths" type="number" class="w-full p-3 border rounded-lg dark:bg-gray-700" @input="calculateEndDate">
-                    </div>
+                    <div><label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Data Inizio</label><input v-model="form.startDate" type="date" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none font-medium" @change="calculateEndDate"></div>
+                    <div><label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Periodicità</label><select v-model="form.periodicity" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none font-medium" @change="calculateEndDate"><option value="1">Mensile</option><option value="2">Bimestrale</option><option value="3">Trimestrale</option><option value="12">Annuale</option><option value="custom">Altro...</option></select></div>
+                    <div v-if="form.periodicity === 'custom'" class="col-span-2"><label class="block text-xs font-bold mb-1">Numero Mesi</label><input v-model="form.customMonths" type="number" class="w-full p-3 border rounded-lg dark:bg-gray-700" @input="calculateEndDate"></div>
                 </div>
-
-                <div v-if="currentSection === 'UTENZE' && ['Luce','Gas','Acqua'].includes(modalCategory)" class="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl border border-dashed border-gray-300 dark:border-gray-600">
-                    <label class="block text-xs font-bold mb-2 text-primary uppercase tracking-wide">
-                        Consumi ({{ getUnit(modalCategory) }})
-                    </label>
-                    <div v-if="modalCategory === 'Luce'" class="grid grid-cols-3 gap-2">
-                        <input v-model="form.f1" placeholder="F1" type="number" class="p-2 text-center text-sm rounded border dark:bg-gray-600">
-                        <input v-model="form.f2" placeholder="F2" type="number" class="p-2 text-center text-sm rounded border dark:bg-gray-600">
-                        <input v-model="form.f3" placeholder="F3" type="number" class="p-2 text-center text-sm rounded border dark:bg-gray-600">
-                    </div>
-                    <div v-else><input v-model="form.consumption" type="number" class="w-full p-2 rounded border dark:bg-gray-600"></div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Fornitore</label>
-                        <select v-model="form.provider" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none text-sm">
-                            <option value="">-</option><option v-for="p in settings.providers" :value="p">{{ p }}</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Tag</label>
-                        <select v-model="form.tag" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none text-sm">
-                             <option value="">-</option><option v-for="t in settings.tags" :value="t">{{ t }}</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div v-if="currentSection === 'ABBONAMENTI'" class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <input type="checkbox" v-model="form.isShared" id="shared" class="w-5 h-5 text-primary rounded">
-                    <label for="shared" class="text-sm font-medium flex-1">Abbonamento Condiviso?</label>
-                    <input v-if="form.isShared" v-model="form.sharedWith" type="number" placeholder="Persone" class="w-20 p-2 text-xs border rounded text-center">
-                </div>
-
+                <div v-if="currentSection === 'UTENZE' && ['Luce','Gas','Acqua'].includes(modalCategory)" class="bg-gray-50 dark:bg-gray-700 p-4 rounded-xl border border-dashed border-gray-300 dark:border-gray-600"><label class="block text-xs font-bold mb-2 text-primary uppercase tracking-wide">Consumi ({{ getUnit(modalCategory) }})</label><div v-if="modalCategory === 'Luce'" class="grid grid-cols-3 gap-2"><input v-model="form.f1" placeholder="F1" type="number" class="p-2 text-center text-sm rounded border dark:bg-gray-600"><input v-model="form.f2" placeholder="F2" type="number" class="p-2 text-center text-sm rounded border dark:bg-gray-600"><input v-model="form.f3" placeholder="F3" type="number" class="p-2 text-center text-sm rounded border dark:bg-gray-600"></div><div v-else><input v-model="form.consumption" type="number" class="w-full p-2 rounded border dark:bg-gray-600"></div></div>
+                <div class="grid grid-cols-2 gap-4"><div><label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Fornitore</label><select v-model="form.provider" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none text-sm"><option value="">-</option><option v-for="p in settings.providers" :value="p">{{ p }}</option></select></div><div><label class="block text-xs font-bold mb-1 ml-1 text-gray-400">Tag</label><select v-model="form.tag" class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none text-sm"><option value="">-</option><option v-for="t in settings.tags" :value="t">{{ t }}</option></select></div></div>
+                <div v-if="currentSection === 'ABBONAMENTI'" class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"><input type="checkbox" v-model="form.isShared" id="shared" class="w-5 h-5 text-primary rounded"><label for="shared" class="text-sm font-medium flex-1">Abbonamento Condiviso?</label><input v-if="form.isShared" v-model="form.sharedWith" type="number" placeholder="Persone" class="w-20 p-2 text-xs border rounded text-center"></div>
                 <textarea v-model="form.notes" placeholder="Note aggiuntive..." class="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-lg outline-none text-sm h-20 resize-none"></textarea>
-
-                <button @click="saveExpense" class="w-full py-4 bg-primary text-white rounded-xl font-bold shadow-lg mt-4 active:scale-95 transition-all">
-                    {{ isEditing ? 'SALVA MODIFICHE' : 'REGISTRA ORA' }}
-                </button>
+                <button @click="saveExpense" class="w-full py-4 bg-primary text-white rounded-xl font-bold shadow-lg mt-4 active:scale-95 transition-all">{{ isEditing ? 'SALVA MODIFICHE' : 'REGISTRA ORA' }}</button>
             </div>
         </div>
     </div>
@@ -481,20 +426,30 @@
     createApp({
         setup() {
             // STATE
-            const currentSection = ref(null);
-            const activeTab = ref('HOME');
-            const isDark = ref(false);
-            const currentYear = new Date().getFullYear();
-            
+            const currentSection = ref(null); const activeTab = ref('HOME'); const isDark = ref(false); const currentYear = new Date().getFullYear();
             const expenses = ref([]); 
             const settings = ref({ providers: ['Enel', 'Eni', 'Netflix', 'Amazon', 'Tim'], tags: ['Casa', 'Svago', 'Lavoro', 'Sport'] });
             
+            // Backup State
+            const lastBackupDate = ref(localStorage.getItem('myHomeLastBackup') || null);
+            const lastModifiedDate = ref(localStorage.getItem('myHomeLastModified') || Date.now());
+
+            const isBackupNeeded = computed(() => {
+                if (!lastBackupDate.value) return true; // Mai fatto backup
+                return new Date(lastModifiedDate.value) > new Date(lastBackupDate.value);
+            });
+
+            function markAsModified() {
+                const now = new Date().toISOString();
+                lastModifiedDate.value = now;
+                localStorage.setItem('myHomeLastModified', now);
+            }
+
             // LISTE
             const subscriptionTypes = ref([{name: 'Netflix'}, {name: 'Prime'}, {name: 'Spotify'}]);
             const utilityTypes = ref([{name: 'Luce'}, {name: 'Gas'}, {name: 'Acqua'}, {name: 'Web'}]);
             const customLogos = ref({}); 
 
-            // COLORS MAP
             const categoryColors = { 'Luce': '#facc15', 'Gas': '#ef4444', 'Acqua': '#3b82f6', 'Web': '#6366f1', 'Netflix': '#b91c1c', 'Prime': '#0ea5e9', 'Spotify': '#22c55e', 'default': '#9ca3af' };
             function getCategoryColor(name) { return categoryColors[name] || '#' + Math.floor(Math.random()*16777215).toString(16); }
             function getUnit(name) { if(name === 'Luce') return 'kWh'; if(name === 'Gas') return 'Smc'; if(name === 'Acqua') return 'mc'; return ''; }
@@ -506,22 +461,14 @@
             const compYears = ref({ A: currentYear, B: currentYear-1, C: currentYear-2 });
             const newTagVal = ref(''); const newProvVal = ref(''); const historyOpen = ref(null);
 
-            // INIT (CON SUPER RECUPERO AUTO)
+            // INIT
             onMounted(() => {
-                // Recupero normale
                 let saved = localStorage.getItem('myHomeDataV7');
-                if (saved) {
-                    expenses.value = JSON.parse(saved);
-                } else {
-                    // Primo tentativo di auto-recupero se V7 è vuoto
-                    recoverOldData(true);
-                }
-
+                if (saved) expenses.value = JSON.parse(saved); else recoverOldData(true);
                 const savedSet = localStorage.getItem('myHomeSettings'); if (savedSet) settings.value = JSON.parse(savedSet);
                 const savedSubs = localStorage.getItem('myHomeSubs'); if (savedSubs) subscriptionTypes.value = JSON.parse(savedSubs);
                 const savedUtils = localStorage.getItem('myHomeUtils'); if (savedUtils) utilityTypes.value = JSON.parse(savedUtils);
                 const savedLogos = localStorage.getItem('myHomeLogos'); if (savedLogos) customLogos.value = JSON.parse(savedLogos);
-
                 if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) isDark.value = true;
                 updateTheme();
             });
@@ -529,44 +476,43 @@
             // RECUPERO DATI VECCHI (SUPER SCAN)
             function recoverOldData(silent = false) {
                 let found = 0;
-                // Scansiona TUTTE le chiavi del localStorage
                 for (let i = 0; i < localStorage.length; i++) {
                     const key = localStorage.key(i);
-                    // Se la chiave sembra un backup vecchio (contiene myHomeData)
                     if (key && key.includes('myHomeData')) {
                         try {
                             const old = localStorage.getItem(key);
                             const parsed = JSON.parse(old);
                             if(Array.isArray(parsed) && parsed.length > 0) {
                                 const currentIds = new Set(expenses.value.map(e => e.id));
-                                parsed.forEach(p => {
-                                    if(!currentIds.has(p.id)) {
-                                        expenses.value.push(p);
-                                        currentIds.add(p.id);
-                                        found++;
-                                    }
-                                });
+                                parsed.forEach(p => { if(!currentIds.has(p.id)) { expenses.value.push(p); currentIds.add(p.id); found++; } });
                             }
                         } catch(e) {}
                     }
                 }
-                if (!silent) alert(`Recuperati ${found} record dai backup precedenti trovati.`);
+                if (!silent) {
+                    if(found > 0) alert(`Recuperati ${found} record! Backup aggiornato.`);
+                    else alert("Nessun dato vecchio trovato in questo browser.");
+                }
             }
 
-            // BACKUP & RESTORE SU FILE (NOVITA')
+            // BACKUP
             function downloadBackup() {
+                const now = new Date().toISOString();
+                lastBackupDate.value = now;
+                localStorage.setItem('myHomeLastBackup', now); // Segna come backuppato
+
                 const backup = {
                     expenses: expenses.value,
                     settings: settings.value,
                     subscriptionTypes: subscriptionTypes.value,
                     utilityTypes: utilityTypes.value,
                     customLogos: customLogos.value,
-                    version: 'V8'
+                    version: 'V9'
                 };
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup));
                 const downloadAnchorNode = document.createElement('a');
                 downloadAnchorNode.setAttribute("href", dataStr);
-                downloadAnchorNode.setAttribute("download", "backup_myhome.json");
+                downloadAnchorNode.setAttribute("download", "backup_myhome_" + new Date().toISOString().split('T')[0] + ".json");
                 document.body.appendChild(downloadAnchorNode);
                 downloadAnchorNode.click();
                 downloadAnchorNode.remove();
@@ -584,36 +530,41 @@
                         if (backup.subscriptionTypes) subscriptionTypes.value = backup.subscriptionTypes;
                         if (backup.utilityTypes) utilityTypes.value = backup.utilityTypes;
                         if (backup.customLogos) customLogos.value = backup.customLogos;
+                        
+                        // Reset timestamp dopo restore
+                        const now = new Date().toISOString();
+                        lastBackupDate.value = now;
+                        lastModifiedDate.value = now;
+                        localStorage.setItem('myHomeLastBackup', now);
+                        localStorage.setItem('myHomeLastModified', now);
+
                         alert("Backup ripristinato con successo!");
-                        location.reload(); // Ricarica per applicare
-                    } catch (err) {
-                        alert("Errore nel file di backup.");
-                    }
+                        location.reload(); 
+                    } catch (err) { alert("Errore nel file di backup."); }
                 };
                 reader.readAsText(file);
             }
 
             // WATCHERS
-            watch(expenses, (n) => localStorage.setItem('myHomeDataV7', JSON.stringify(n)), { deep: true });
-            watch(settings, (n) => localStorage.setItem('myHomeSettings', JSON.stringify(n)), { deep: true });
-            watch(subscriptionTypes, (n) => localStorage.setItem('myHomeSubs', JSON.stringify(n)), { deep: true });
-            watch(utilityTypes, (n) => localStorage.setItem('myHomeUtils', JSON.stringify(n)), { deep: true });
-            watch(customLogos, (n) => localStorage.setItem('myHomeLogos', JSON.stringify(n)), { deep: true });
+            watch(expenses, (n) => { 
+                localStorage.setItem('myHomeDataV7', JSON.stringify(n)); 
+                markAsModified(); // Segna modifica
+            }, { deep: true });
+            
+            watch(settings, (n) => { localStorage.setItem('myHomeSettings', JSON.stringify(n)); markAsModified(); }, { deep: true });
+            watch(subscriptionTypes, (n) => { localStorage.setItem('myHomeSubs', JSON.stringify(n)); markAsModified(); }, { deep: true });
+            watch(utilityTypes, (n) => { localStorage.setItem('myHomeUtils', JSON.stringify(n)); markAsModified(); }, { deep: true });
+            watch(customLogos, (n) => { localStorage.setItem('myHomeLogos', JSON.stringify(n)); markAsModified(); }, { deep: true });
+            
             watch(isDark, updateTheme);
             watch([activeTab, analysisYear, analysisMode, currentSection], () => { if (activeTab.value === 'ANALISI') setTimeout(renderChart, 100); });
 
-            // COMPUTED
+            // ... (Rest of logic same as V7) ...
             const currentList = computed(() => currentSection.value === 'UTENZE' ? utilityTypes.value : subscriptionTypes.value);
             const allCategories = computed(() => [...new Set([...utilityTypes.value, ...subscriptionTypes.value].map(i => i.name))]);
             const consumptionCategories = computed(() => ['Luce','Gas','Acqua']);
-            const availableYears = computed(() => {
-                const years = new Set(expenses.value.filter(e => e.section === currentSection.value).map(e => parseInt(e.startDate.substring(0,4))));
-                years.add(currentYear);
-                expenses.value.filter(e => e.section === currentSection.value).forEach(e => years.add(parseInt(e.endDate.substring(0,4))));
-                return Array.from(years).sort((a,b) => b-a);
-            });
+            const availableYears = computed(() => { const years = new Set(expenses.value.filter(e => e.section === currentSection.value).map(e => parseInt(e.startDate.substring(0,4)))); years.add(currentYear); expenses.value.filter(e => e.section === currentSection.value).forEach(e => years.add(parseInt(e.endDate.substring(0,4)))); return Array.from(years).sort((a,b) => b-a); });
 
-            // LOGIC & UI HELPERS
             function getMonthsDiff(start, end) { if(!start || !end) return 1; const d1 = new Date(start); const d2 = new Date(end); return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()) + 1; }
             function getProRatedAmount(expense, year) { const start = new Date(expense.startDate); const totalMonths = expense.monthsCount || 1; const monthlyAmount = expense.amount / totalMonths; let matches = 0; let cursor = new Date(start.getFullYear(), start.getMonth(), 1); for(let i=0; i<totalMonths; i++) { if (year === cursor.getFullYear()) matches++; cursor.setMonth(cursor.getMonth() + 1); } return matches * monthlyAmount; }
             function getProRatedConsumption(expense, year) { const totalMonths = expense.monthsCount || 1; const matches = getProRatedAmount({ ...expense, amount: totalMonths }, year); const val = (expense.consumption || 0) + (expense.f1||0) + (expense.f2||0) + (expense.f3||0); return (val / totalMonths) * matches; }
@@ -625,8 +576,6 @@
             function formatCurrency(val) { return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(val); }
             function formatPeriod(entry) { const d1 = new Date(entry.startDate); const d2 = new Date(entry.endDate); const opts = { month: 'short', year: '2-digit' }; return `${d1.toLocaleDateString('it-IT', opts)} - ${d2.toLocaleDateString('it-IT', opts)}`; }
             function getCustomLogo(name) { return customLogos.value[name] || null; }
-
-            // CRUD
             function handleLogoUploadDirect(event, itemName) { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); const maxSize = 150; let w = img.width, h = img.height; if (w > h) { if (w > maxSize) { h *= maxSize / w; w = maxSize; } } else { if (h > maxSize) { w *= maxSize / h; h = maxSize; } } canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h); customLogos.value[itemName] = canvas.toDataURL('image/jpeg', 0.85); }; img.src = e.target.result; }; reader.readAsDataURL(file); }
             function renameCategory(oldName) { const newName = prompt("Nuovo nome per " + oldName + ":", oldName); if (!newName || newName === oldName) return; let list = utilityTypes.value.find(u => u.name === oldName) ? utilityTypes.value : subscriptionTypes.value; let item = list.find(u => u.name === oldName); if(item) item.name = newName; if(customLogos.value[oldName]) { customLogos.value[newName] = customLogos.value[oldName]; delete customLogos.value[oldName]; } expenses.value.forEach(e => { if(e.category === oldName) e.category = newName; }); }
             function deleteCategory(name) { if(!confirm("Rimuovere '" + name + "'?")) return; utilityTypes.value = utilityTypes.value.filter(u => u.name !== name); subscriptionTypes.value = subscriptionTypes.value.filter(s => s.name !== name); }
@@ -637,15 +586,11 @@
             function saveExpense() { if(!form.value.amount || !form.value.startDate) return alert("Dati mancanti."); const catName = isCreatingNewSub.value ? form.value.customName : modalCategory.value; if(!catName) return alert("Inserisci un nome."); if(isCreatingNewSub.value) { if(currentSection.value === 'UTENZE') { if(!utilityTypes.value.find(u => u.name === catName)) utilityTypes.value.push({name: catName}); } else { if(!subscriptionTypes.value.find(s => s.name === catName)) subscriptionTypes.value.push({name: catName}); } } const monthsCount = getMonthsDiff(form.value.startDate, form.value.endDate); const record = { id: isEditing.value ? editingId.value : Date.now(), section: currentSection.value, category: catName, amount: parseFloat(form.value.amount), startDate: form.value.startDate, endDate: form.value.endDate, periodicity: form.value.periodicity, customMonths: form.value.customMonths, monthsCount: monthsCount, provider: form.value.provider, tag: form.value.tag, consumption: parseFloat(form.value.consumption)||0, f1: parseFloat(form.value.f1)||0, f2: parseFloat(form.value.f2)||0, f3: parseFloat(form.value.f3)||0, notes: form.value.notes, isShared: form.value.isShared, sharedWith: form.value.sharedWith }; if (isEditing.value) { const idx = expenses.value.findIndex(e => e.id === editingId.value); if (idx !== -1) expenses.value[idx] = record; } else { expenses.value.push(record); } closeModal(); }
             function closeModal() { showModal.value = false; }
             function deleteEntry(id) { if(confirm("Eliminare?")) expenses.value = expenses.value.filter(e => e.id !== id); }
-
-            // ANALISI & EXPORT
             const analysisData = computed(() => { const grouped = {}; expenses.value.filter(e => e.section === currentSection.value).forEach(e => { let val = (analysisMode.value === 'CONSUMI') ? getProRatedConsumption(e, analysisYear.value) : getProRatedAmount(e, analysisYear.value); if(val > 0) { let key = e.category; if(analysisMode.value === 'TAG') key = e.tag || 'No Tag'; if (!grouped[key]) grouped[key] = { total: 0, totalF1:0, totalF2:0, totalF3:0, entries: [] }; grouped[key].total += val; const yearFactor = getProRatedAmount({ ...e, amount: 1 }, analysisYear.value); grouped[key].totalF1 += (e.f1 || 0) * yearFactor; grouped[key].totalF2 += (e.f2 || 0) * yearFactor; grouped[key].totalF3 += (e.f3 || 0) * yearFactor; grouped[key].entries.push({ original: e, val: val, id: e.id }); } }); return grouped; });
             const analysisGrandTotal = computed(() => Object.values(analysisData.value).reduce((acc, curr) => acc + curr.total, 0));
             function toggleExpanded(key) { expandedKey.value = expandedKey.value === key ? null : key; }
             function renderChart() { const ctx = document.getElementById('analysisChart'); if(!ctx) return; if(chartInstance) chartInstance.destroy(); const labels = Object.keys(analysisData.value); const data = Object.values(analysisData.value).map(o => o.total); const bgColors = labels.map(l => getCategoryColor(l)); chartInstance = new Chart(ctx, { type: analysisMode.value === 'CONSUMI' ? 'bar' : 'doughnut', data: { labels: labels, datasets: [{ data: data, backgroundColor: bgColors, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: analysisMode.value !== 'CONSUMI', position: 'right', labels: { color: isDark.value?'#fff':'#333' } } } } }); }
-            
             function exportData() { const explodedData = []; expenses.value.filter(e => e.section === currentSection.value).forEach(e => { const start = new Date(e.startDate); const months = e.monthsCount || 1; const monthlyAmount = e.amount / months; const monthlyCons = (e.consumption || 0) / months; const monthlyF1 = (e.f1 || 0) / months; const monthlyF2 = (e.f2 || 0) / months; const monthlyF3 = (e.f3 || 0) / months; let cursor = new Date(start.getFullYear(), start.getMonth(), 1); for(let i=0; i<months; i++) { explodedData.push({ "Anno": cursor.getFullYear(), "Mese": cursor.toLocaleString('it-IT', { month: 'long' }), "Categoria": e.category, "Fornitore": e.provider, "Importo (€)": monthlyAmount.toFixed(2), "Consumo Tot": monthlyCons.toFixed(2), "F1": monthlyF1.toFixed(2), "F2": monthlyF2.toFixed(2), "F3": monthlyF3.toFixed(2), "Tag": e.tag, "Condiviso": e.isShared ? 'SI' : 'NO', "Note": e.notes }); cursor.setMonth(cursor.getMonth() + 1); } }); const ws = XLSX.utils.json_to_sheet(explodedData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Dettaglio_Mensile"); XLSX.writeFile(wb, "MyHome_Export_Completo.xlsx"); }
-
             const uniqueCategories = computed(() => Array.from(new Set(expenses.value.filter(e => e.section === currentSection.value).map(e => e.category))));
             const uniqueTags = computed(() => Array.from(new Set(expenses.value.filter(e => e.section === currentSection.value).map(e => e.tag))));
             function getVal(type, key, year) { return expenses.value.filter(e => e.section === currentSection.value && (type==='Categories'?e.category:e.tag) === key).reduce((s, e) => s + getProRatedAmount(e, year), 0); }
@@ -669,7 +614,7 @@
                 analysisYear, analysisMode, analysisData, analysisGrandTotal, expandedKey, toggleExpanded,
                 compYears, uniqueCategories, uniqueTags, getVal, getConsumptionVal, getDiffPerc, getDiffColor,
                 newTagVal, newProvVal, addTag, addProvider, removeOption, exportData, historyOpen, toggleHistory,
-                recoverOldData, downloadBackup, restoreBackup // EXPORT NEW
+                recoverOldData, downloadBackup, restoreBackup, isBackupNeeded, lastBackupDate // NEW EXPORTS
             }
         }
     }).mount('#app');
